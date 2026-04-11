@@ -1,0 +1,11 @@
+{
+    "display_name": "Chat Token Counter",
+    "loading_order": 15,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "diamond-shark-art",
+    "version": "1.0.0",
+    "homePage": "https://github.com/diamond-shark-art/st_token_counter"
+}

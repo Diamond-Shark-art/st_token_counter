@@ -1,0 +1,14 @@
+#chat_token_counter_widget {
+    padding: 2px 8px;
+    font-size: 0.85em;
+    opacity: 0.75;
+    gap: 4px;
+}
+
+#chat_token_counter_widget .ctc-label {
+    font-weight: 600;
+}
+
+#chat_token_counter_widget:hover {
+    opacity: 1;
+}
