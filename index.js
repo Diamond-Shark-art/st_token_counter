@@ -6,15 +6,48 @@ import { debounce } from '../../../utils.js';
 const WIDGET_ID = 'chat_token_counter_widget';
 const VALUE_ID = 'chat_token_counter_value';
 
-function setValue(v) {
+let lastPresetTokens = null;
+
+function getPresetTokens(chatTokens) {
+    try {
+        // promptManager is a late-initialized export — use dynamic import to
+        // avoid issues if openai.js hasn't set it up yet.
+        // We cache the module reference after the first successful load.
+        if (!getPresetTokens._mod) return null;
+
+        const pm = getPresetTokens._mod.promptManager;
+        if (!pm?.tokenHandler) return null;
+
+        const total = pm.tokenHandler.getTotal();
+        if (typeof total !== 'number' || total <= 0) return null;
+
+        // promptManager total includes chat messages, so subtract them.
+        const preset = Math.max(0, total - chatTokens);
+        return preset;
+    } catch {
+        return null;
+    }
+}
+
+function updateDisplay(chatTokens, presetTokens) {
     const el = document.getElementById(VALUE_ID);
-    if (el) el.textContent = String(v);
+    if (!el) return;
+
+    if (presetTokens !== null) {
+        const total = chatTokens + presetTokens;
+        el.innerHTML =
+            `<span class="ctc-label">Total tokens:</span> ${total} ` +
+            `<span class="ctc-detail">(${chatTokens} chat - ${presetTokens} preset)</span>`;
+    } else {
+        el.innerHTML =
+            `<span class="ctc-label">Chat tokens:</span> ${chatTokens}`;
+    }
 }
 
 async function recount() {
     const ctx = getContext();
     if (!ctx || !Array.isArray(ctx.chat)) {
-        setValue(0);
+        updateDisplay(0, null);
         return;
     }
     const text = ctx.chat
@@ -22,11 +55,13 @@ async function recount() {
         .map(m => m.mes)
         .join('\n');
     try {
-        const count = text.length ? await getTokenCountAsync(text) : 0;
-        setValue(count);
+        const chatTokens = text.length ? await getTokenCountAsync(text) : 0;
+        const presetTokens = getPresetTokens(chatTokens);
+        if (presetTokens !== null) lastPresetTokens = presetTokens;
+        updateDisplay(chatTokens, presetTokens ?? lastPresetTokens);
     } catch (err) {
-        console.error('[chat-token-counter] count failed', err);
-        setValue('?');
+        console.error('[chat-token-counter] recount failed', err);
+        updateDisplay(0, null);
     }
 }
 
@@ -37,9 +72,7 @@ function injectWidget() {
     const widget = document.createElement('div');
     widget.id = WIDGET_ID;
     widget.className = 'flex-container alignItemsCenter';
-    widget.innerHTML =
-        '<span class="ctc-label">Chat tokens:</span> ' +
-        `<span id="${VALUE_ID}">0</span>`;
+    widget.innerHTML = `<span id="${VALUE_ID}"></span>`;
     host.prepend(widget);
     return true;
 }
@@ -47,6 +80,13 @@ function injectWidget() {
 const recountDebounced = debounce(recount, 250);
 
 jQuery(async () => {
+    // Eagerly load the openai module so promptManager is available on recount.
+    try {
+        getPresetTokens._mod = await import('../../../openai.js');
+    } catch {
+        console.warn('[chat-token-counter] could not load openai.js — preset count unavailable');
+    }
+
     if (!injectWidget()) {
         const start = Date.now();
         const iv = setInterval(() => {
@@ -63,6 +103,11 @@ jQuery(async () => {
     eventSource.on(event_types.MESSAGE_UPDATED, recountDebounced);
     eventSource.on(event_types.MESSAGE_DELETED, recountDebounced);
     eventSource.on(event_types.MESSAGE_SWIPED, recountDebounced);
+
+    // Also recount after prompt assembly (populates promptManager token data).
+    if (event_types.CHAT_COMPLETION_PROMPT_READY) {
+        eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, recountDebounced);
+    }
 
     recount();
 });
