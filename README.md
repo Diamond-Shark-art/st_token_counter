@@ -2,7 +2,7 @@
 
 A minimal [SillyTavern](https://github.com/SillyTavern/SillyTavern) extension that displays the total token count of the current chat, always visible just above the message input.
 
-![screenshot](https://github.com/user-attachments/assets/placeholder)
+![screenshot](Screenshots/screenshot.jpg)
 
 ## Features
 
