@@ -1,5 +1,7 @@
 # Chat Token Counter
 
+Disclaimer: This plugin is made a 100% by Claude. I can't code.
+
 A minimal [SillyTavern](https://github.com/SillyTavern/SillyTavern) extension that displays the total token count of the current chat, always visible just above the message input.
 
 ![screenshot](Screenshots/screenshot.jpg)
