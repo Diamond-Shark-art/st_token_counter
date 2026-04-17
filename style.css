@@ -9,10 +9,6 @@
     font-weight: 600;
 }
 
-#chat_token_counter_widget .ctc-detail {
-    opacity: 0.7;
-}
-
 #chat_token_counter_widget:hover {
     opacity: 1;
 }
