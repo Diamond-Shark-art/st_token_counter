@@ -44,15 +44,25 @@ jQuery(async () => {
         }, 100);
     }
 
-    eventSource.on(event_types.CHAT_CHANGED, recountDebounced);
-    eventSource.on(event_types.MESSAGE_SENT, recountDebounced);
-    eventSource.on(event_types.MESSAGE_RECEIVED, recountDebounced);
-    eventSource.on(event_types.MESSAGE_EDITED, recountDebounced);
-    eventSource.on(event_types.MESSAGE_UPDATED, recountDebounced);
-    eventSource.on(event_types.MESSAGE_DELETED, recountDebounced);
-    eventSource.on(event_types.MESSAGE_SWIPED, recountDebounced);
-
-    if (event_types.CHAT_COMPLETION_PROMPT_READY) {
-        eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, recountDebounced);
+    // Track generation state — promptManager.tokenHandler is unreliable
+    // during prompt assembly (it briefly reports an inflated total).
+    let generating = false;
+    if (event_types.GENERATION_STARTED) {
+        eventSource.on(event_types.GENERATION_STARTED, () => { generating = true; });
     }
+    const generationFinished = () => {
+        generating = false;
+        recountDebounced();
+    };
+    if (event_types.GENERATION_ENDED) eventSource.on(event_types.GENERATION_ENDED, generationFinished);
+    if (event_types.GENERATION_STOPPED) eventSource.on(event_types.GENERATION_STOPPED, generationFinished);
+
+    const safeRecount = () => { if (!generating) recountDebounced(); };
+
+    eventSource.on(event_types.CHAT_CHANGED, safeRecount);
+    eventSource.on(event_types.MESSAGE_RECEIVED, safeRecount);
+    eventSource.on(event_types.MESSAGE_EDITED, safeRecount);
+    eventSource.on(event_types.MESSAGE_UPDATED, safeRecount);
+    eventSource.on(event_types.MESSAGE_DELETED, safeRecount);
+    eventSource.on(event_types.MESSAGE_SWIPED, safeRecount);
 });
