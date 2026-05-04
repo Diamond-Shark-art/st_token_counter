@@ -6,11 +6,14 @@ const VALUE_ID = 'chat_token_counter_value';
 
 let openaiMod = null;
 
+// Read promptManager.tokenUsage — the snapshot captured during prompt
+// assembly that the Prompt Manager UI itself displays. tokenHandler.getTotal()
+// is unreliable: other code paths add entries to tokenHandler.counts (e.g.
+// a 'conversation' key) after populateTokenCounts() runs, inflating the sum.
 function recount() {
-    const total = openaiMod?.promptManager?.tokenHandler?.getTotal();
+    const total = openaiMod?.promptManager?.tokenUsage;
     const el = document.getElementById(VALUE_ID);
     if (!el) return;
-
     if (typeof total === 'number' && total > 0) {
         el.innerHTML = `<span class="ctc-label">Total tokens:</span> ${total}`;
     }
@@ -44,25 +47,13 @@ jQuery(async () => {
         }, 100);
     }
 
-    // Track generation state — promptManager.tokenHandler is unreliable
-    // during prompt assembly (it briefly reports an inflated total).
-    let generating = false;
-    if (event_types.GENERATION_STARTED) {
-        eventSource.on(event_types.GENERATION_STARTED, () => { generating = true; });
+    // tokenUsage is updated only when a prompt is assembled. The most
+    // reliable trigger is CHAT_COMPLETION_PROMPT_READY, which fires right
+    // after populateTokenCounts() sets the snapshot.
+    if (event_types.CHAT_COMPLETION_PROMPT_READY) {
+        eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, recountDebounced);
     }
-    const generationFinished = () => {
-        generating = false;
-        recountDebounced();
-    };
-    if (event_types.GENERATION_ENDED) eventSource.on(event_types.GENERATION_ENDED, generationFinished);
-    if (event_types.GENERATION_STOPPED) eventSource.on(event_types.GENERATION_STOPPED, generationFinished);
-
-    const safeRecount = () => { if (!generating) recountDebounced(); };
-
-    eventSource.on(event_types.CHAT_CHANGED, safeRecount);
-    eventSource.on(event_types.MESSAGE_RECEIVED, safeRecount);
-    eventSource.on(event_types.MESSAGE_EDITED, safeRecount);
-    eventSource.on(event_types.MESSAGE_UPDATED, safeRecount);
-    eventSource.on(event_types.MESSAGE_DELETED, safeRecount);
-    eventSource.on(event_types.MESSAGE_SWIPED, safeRecount);
+    eventSource.on(event_types.CHAT_CHANGED, recountDebounced);
+    eventSource.on(event_types.MESSAGE_RECEIVED, recountDebounced);
+    eventSource.on(event_types.MESSAGE_SWIPED, recountDebounced);
 });
